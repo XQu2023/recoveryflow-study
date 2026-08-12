@@ -199,7 +199,7 @@ export default function Home() {
               <p className="involved-label">CONNECT</p>
               <h3>Become part of the network.</h3>
               <p>Join other industry professionals who want to share experience, exchange practical knowledge and help the industry learn faster together.</p>
-              <span className="involved-future" role="link" aria-disabled="true">Become a RecoveryFlow Contributor <b>→</b></span>
+              <Link className="involved-future" href="/contributors">Become a RecoveryFlow Contributor <b>→</b></Link>
             </article>
           </div>
 
@@ -217,7 +217,7 @@ export default function Home() {
 
             <nav className="footer-nav" aria-label="Footer navigation">
               <Link href="/keep">Recovery Study <b>→</b></Link>
-              <span role="link" aria-disabled="true">Contributor Programme <b>→</b></span>
+              <Link href="/contributors">Contributor Programme <b>→</b></Link>
               <span role="link" aria-disabled="true">LinkedIn <b>→</b></span>
             </nav>
           </div>
