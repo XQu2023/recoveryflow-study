@@ -1,60 +1,217 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { FormEvent, useMemo, useState } from "react";
 
 type Question = {
   eyebrow: string;
   title: string;
-  options?: string[];
-  optional?: boolean;
+  options: string[];
+  followUp?: { when: string; label: string };
 };
 
 const questions: Question[] = [
-  { eyebrow: "Your experience", title: "Which best describes your role?", options: ["Fleet Manager", "Service Manager", "Engineer", "Rental Company", "Contractor", "Manufacturer", "Other (please specify)"] },
-  { eyebrow: "Downtime causes", title: "What most often causes downtime?", options: ["Electrical", "Hydraulics", "Controls / Sensors", "Battery / Charging", "Parts availability", "Other (please specify)"] },
-  { eyebrow: "Your experience", title: "How often does downtime occur?", options: ["Daily", "Weekly", "Monthly", "Less than once a month"] },
-  { eyebrow: "Business impact", title: "What has the biggest impact when downtime occurs?", options: ["Project delays", "Lost revenue", "Customer dissatisfaction", "Higher repair costs", "Equipment unavailable", "Other (please specify)"] },
-  { eyebrow: "Industry priorities", title: "Which area would you most like to see improved?", options: ["Faster technical support", "Parts availability", "Machine reliability", "Operator training", "Remote diagnostics", "Other (please specify)"] },
-  { eyebrow: "Service expectations", title: "How quickly should a downtime issue be resolved?", options: ["Within 4 hours", "Within 24 hours", "Within 2–3 days", "More than 3 days", "It depends on the issue"] },
-  { eyebrow: "Stay connected", title: "Would you like to receive the UK Powered Access Downtime Study 2026?", options: ["Yes, by email", "Yes, by LinkedIn", "No, thank you"] },
-  { eyebrow: "One final thought", title: "What downtime challenge deserves more industry attention?", optional: true },
+  {
+    eyebrow: "Step 1 — About You",
+    title: "Which best describes your role?",
+    options: ["Fleet Manager", "Service Manager", "Engineer", "Rental Company", "Manufacturer", "Supplier", "Other"],
+  },
+  {
+    eyebrow: "Step 2 — The Downtime Event",
+    title: "What was the main reason the machine stopped working?",
+    options: ["Battery", "Hydraulic", "Electrical", "Engine", "Controls", "Safety system", "Unknown", "Other"],
+    followUp: { when: "Other", label: "Please tell us more" },
+  },
+  {
+    eyebrow: "Step 3 — Before It Happened",
+    title: "Looking back, were there any warning signs before the machine stopped?",
+    options: ["Yes", "No", "Not sure"],
+    followUp: { when: "Yes", label: "What warning signs did you notice?" },
+  },
+  {
+    eyebrow: "Step 4 — Recovery",
+    title: "What caused the biggest delay in getting the machine back to work?",
+    options: ["Finding the fault", "Confirming the cause", "Waiting for parts", "Waiting for an engineer", "Approval", "Repair", "Testing", "Other"],
+    followUp: { when: "Other", label: "Please tell us more" },
+  },
+  {
+    eyebrow: "Step 5 — Getting Back to Work",
+    title: "What helped get the machine back to work?",
+    options: ["Replaced parts", "Engineer experience", "Manufacturer support", "Technical information", "Remote support", "Temporary repair", "Other"],
+    followUp: { when: "Other", label: "Please tell us more" },
+  },
+  {
+    eyebrow: "Step 6 — Looking Ahead",
+    title: "If you could improve one thing, what would it be?",
+    options: ["Prevent breakdowns", "Find faults faster", "Better technical information", "Faster parts", "Better training", "Better support", "Better communication", "Other"],
+    followUp: { when: "Other", label: "Please tell us more" },
+  },
 ];
 
 function KeepBrand() {
-  return <a className="keep-brand" href="/" aria-label="RecoveryFlow home"><span className="keep-brand-mark" aria-hidden="true"><i /><i /><i /></span><span>Recovery<span>Flow</span><small>AN INDUSTRY LEARNING INITIATIVE</small></span></a>;
+  return (
+    <a className="keep-brand" href="/" aria-label="RecoveryFlow home">
+      <span className="keep-brand-mark" aria-hidden="true"><i /><i /><i /></span>
+      <span>Recovery<span>Flow</span><small>AN INDUSTRY LEARNING INITIATIVE</small></span>
+    </a>
+  );
 }
 
 export default function KeepStudy() {
-  const [started, setStarted] = useState(false);
+  const [screen, setScreen] = useState<"landing" | "before" | "questions" | "contact" | "done">("landing");
   const [step, setStep] = useState(0);
   const [answers, setAnswers] = useState<Record<number, string>>({});
-  const [other, setOther] = useState<Record<number, string>>({});
-  const [done, setDone] = useState(false);
+  const [followUps, setFollowUps] = useState<Record<number, string>>({});
   const question = questions[step];
   const answer = answers[step] || "";
-  const isOther = answer === "Other (please specify)";
-  const canContinue = question.optional || (!!answer && (!isOther || !!other[step]?.trim()));
+  const showFollowUp = question.followUp?.when === answer;
+  const canContinue = !!answer && (!showFollowUp || !!followUps[step]?.trim());
   const progress = useMemo(() => ((step + 1) / questions.length) * 100, [step]);
 
   function select(value: string) {
     setAnswers((current) => ({ ...current, [step]: value }));
-    if (value !== "Other (please specify)") setOther((current) => ({ ...current, [step]: "" }));
+    if (question.followUp?.when !== value) {
+      setFollowUps((current) => ({ ...current, [step]: "" }));
+    }
   }
 
   function next() {
     if (!canContinue) return;
-    if (step === questions.length - 1) setDone(true);
+    if (step === questions.length - 1) setScreen("contact");
     else setStep((current) => current + 1);
   }
 
   function back() {
-    if (step === 0) setStarted(false);
+    if (step === 0) setScreen("before");
     else setStep((current) => current - 1);
   }
 
-  if (done) return <main className="keep-study keep-done"><header className="keep-header"><KeepBrand /><span>RESPONSE RECORDED</span></header><section><div className="keep-success">✓</div><p className="keep-kicker">UK POWERED ACCESS / 2026</p><h1>Thank you<br /><em>for taking part.</em></h1><p>Your experience will help the UK powered access industry learn from downtime and make better decisions.</p><div className="keep-done-actions"><a href="/">Return home <b>↗</b></a><button onClick={() => { setDone(false); setStarted(false); setStep(0); setAnswers({}); setOther({}); }}>Start again</button></div></section></main>;
+  function reset() {
+    setScreen("landing");
+    setStep(0);
+    setAnswers({});
+    setFollowUps({});
+  }
 
-  if (!started) return <main className="keep-study keep-intro"><header className="keep-header"><KeepBrand /><span>UK POWERED ACCESS / 2026</span></header><section className="keep-intro-grid"><div><p className="keep-kicker">RECOVERY STUDY / 2026</p><h1>Keep the UK<br /><em>working.</em></h1><p className="keep-lead">Help us understand what really causes downtime — and what the powered access industry can do better.</p><button className="keep-primary" onClick={() => setStarted(true)}>Take part in the study <b>↗</b></button><div className="keep-facts"><span><b>01</b>Anonymous</span><span><b>02</b>About 3 minutes</span><span><b>03</b>One response</span></div></div><aside><span className="keep-orbit" aria-hidden="true" /><div><small>RECOVERYFLOW</small><strong>Learning from downtime.<br />Improving uptime together.</strong></div></aside></section></main>;
+  function submit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setScreen("done");
+  }
 
-  return <main className="keep-study keep-question-page"><header className="keep-header keep-header-light"><KeepBrand /><button onClick={() => setStarted(false)}>Exit study</button></header><div className="keep-progress"><div><span>STUDY PROGRESS</span><b>Question {step + 1} of {questions.length}</b></div><i><em style={{ width: `${progress}%` }} /></i></div><section className="keep-question-shell"><div className="keep-question-meta"><p className="keep-kicker">{question.eyebrow}</p><strong><i>●</i> Anonymous participation</strong></div><h1>{question.title}</h1>{question.options ? <><div className="keep-options">{question.options.map((option, index) => <button key={option} className={answer === option ? "selected" : ""} onClick={() => select(option)} aria-pressed={answer === option}><span>{String(index + 1).padStart(2, "0")}</span><b>{option}</b><i>✓</i></button>)}</div>{isOther && <label className="keep-other">Please specify<input autoFocus value={other[step] || ""} maxLength={160} onChange={(event) => setOther((current) => ({ ...current, [step]: event.target.value }))} placeholder="Add a short description…" /><span>{(other[step] || "").trim().length}/160</span></label>}</> : <div className="keep-textarea"><textarea autoFocus value={answer} maxLength={700} onChange={(event) => select(event.target.value)} placeholder="Share anything you’d like the industry to know…" /><span>{answer.length}/700</span></div>}<div className="keep-actions"><div><button className="keep-back" onClick={back}>← Back</button><span>Your answers are anonymous<small>One response per person</small></span></div><div><span>{question.optional ? "Optional — share as much or as little as you like" : "Select one answer to continue"}</span><button className="keep-primary" disabled={!canContinue} onClick={next}>{step === 7 ? "Submit study" : "Next question"}<b>↗</b></button></div></div></section></main>;
+  if (screen === "done") {
+    return (
+      <main className="keep-study keep-done">
+        <header className="keep-header"><KeepBrand /><span>RESPONSE RECORDED</span></header>
+        <section>
+          <div className="keep-success">✓</div>
+          <p className="keep-kicker">UK POWERED ACCESS RECOVERY STUDY 2026</p>
+          <h1>Thank you for sharing<br /><em>your experience.</em></h1>
+          <p><strong>Your contribution will help improve the UK powered access industry.</strong><br /><br />The Recovery Study findings will be shared with contributors once the research is complete.</p>
+          <div className="keep-done-actions">
+            <a href="/">Visit RecoveryFlow <b>↗</b></a>
+            <a href="https://www.linkedin.com/company/recoveryflow/" target="_blank" rel="noreferrer">Connect on LinkedIn <b>↗</b></a>
+          </div>
+          <button className="keep-reset" onClick={reset}>Start another response</button>
+        </section>
+      </main>
+    );
+  }
+
+  if (screen === "landing") {
+    return (
+      <main className="keep-study keep-intro">
+        <header className="keep-header"><KeepBrand /><span>UK POWERED ACCESS RECOVERY STUDY 2026</span></header>
+        <section className="keep-intro-grid">
+          <div>
+            <p className="keep-kicker">RECOVERY STUDY / 2026</p>
+            <h1>KEEP THE UK<br /><em>WORKING</em></h1>
+            <p className="keep-lead">Help us understand how machines get back to work faster—and how unnecessary downtime can be prevented.</p>
+            <button className="keep-primary" onClick={() => setScreen("before")}>Start the 3-minute Industry Conversation <b>↗</b></button>
+            <p className="keep-cta-note">About 3 minutes <i>•</i> Mobile friendly <i>•</i> No preparation needed</p>
+          </div>
+          <aside>
+            <span className="keep-orbit" aria-hidden="true" />
+            <div className="keep-benefits-card">
+              <small>WHY PARTICIPATE</small>
+              <strong>Your experience will help shape the UK Powered Access Recovery Study 2026.</strong>
+              <ul>
+                <li><i>01</i> Share your experience</li>
+                <li><i>02</i> Learn from the industry</li>
+                <li><i>03</i> Receive the Recovery Study findings</li>
+              </ul>
+              <p>We&apos;re not looking for perfect answers. We&apos;re interested in real experiences.</p>
+            </div>
+          </aside>
+        </section>
+      </main>
+    );
+  }
+
+  if (screen === "before") {
+    return (
+      <main className="keep-study keep-question-page">
+        <header className="keep-header keep-header-light"><KeepBrand /><button onClick={() => setScreen("landing")}>Exit study</button></header>
+        <section className="keep-before-shell">
+          <p className="keep-kicker">BEFORE WE START</p>
+          <h1>Thank you for contributing.</h1>
+          <div className="keep-before-copy">
+            <p>Please think about <strong>one real downtime event</strong> that had the biggest impact on your work.</p>
+            <p>We&apos;re not looking for perfect answers. We&apos;re interested in your real experience.</p>
+          </div>
+          <button className="keep-primary" onClick={() => setScreen("questions")}>Continue <b>↗</b></button>
+        </section>
+      </main>
+    );
+  }
+
+  if (screen === "contact") {
+    return (
+      <main className="keep-study keep-question-page">
+        <header className="keep-header keep-header-light"><KeepBrand /><button onClick={() => setScreen("landing")}>Exit study</button></header>
+        <div className="keep-progress"><div><span>STUDY PROGRESS</span><b>Complete</b></div><i><em style={{ width: "100%" }} /></i></div>
+        <section className="keep-contact-shell">
+          <div className="keep-contact-copy">
+            <p className="keep-kicker">UK POWERED ACCESS RECOVERY STUDY 2026</p>
+            <h1>Stay in Touch</h1>
+            <p>We&apos;ll send you the UK Powered Access Recovery Study findings and future industry updates if you&apos;d like to receive them.</p>
+          </div>
+          <form className="keep-contact-form" onSubmit={submit}>
+            <label>Full Name<input name="name" required autoFocus autoComplete="name" /></label>
+            <label>Company<input name="company" required autoComplete="organization" /></label>
+            <label>Email Address<input name="email" type="email" required autoComplete="email" /></label>
+            <label>LinkedIn <small>Optional</small><input name="linkedin" type="url" placeholder="https://linkedin.com/in/…" /></label>
+            <label className="keep-checkbox"><input name="findings" type="checkbox" /><span>Send me the Recovery Study findings.</span></label>
+            <div className="keep-contact-actions"><button type="button" className="keep-back" onClick={() => { setScreen("questions"); setStep(5); }}>← Back</button><button className="keep-primary" type="submit">Submit my contribution <b>↗</b></button></div>
+          </form>
+        </section>
+      </main>
+    );
+  }
+
+  return (
+    <main className="keep-study keep-question-page">
+      <header className="keep-header keep-header-light"><KeepBrand /><button onClick={() => setScreen("landing")}>Exit study</button></header>
+      <div className="keep-progress" aria-live="polite"><div><span>STUDY PROGRESS</span><b>Question {step + 1} of {questions.length}</b></div><i><em style={{ width: `${progress}%` }} /></i></div>
+      <section className="keep-question-shell" key={step}>
+        <div className="keep-question-meta"><p className="keep-kicker">{question.eyebrow}</p><strong><i>●</i> Real experience</strong></div>
+        <h1>{question.title}</h1>
+        <div className="keep-options">
+          {question.options.map((option, index) => (
+            <button key={option} className={answer === option ? "selected" : ""} onClick={() => select(option)} aria-pressed={answer === option}>
+              <span>{String(index + 1).padStart(2, "0")}</span><b>{option}</b><i>✓</i>
+            </button>
+          ))}
+        </div>
+        {showFollowUp && (
+          <label className="keep-other">{question.followUp?.label}
+            <input autoFocus value={followUps[step] || ""} maxLength={160} onChange={(event) => setFollowUps((current) => ({ ...current, [step]: event.target.value }))} placeholder="Add a short description…" />
+            <span>{(followUps[step] || "").trim().length}/160</span>
+          </label>
+        )}
+        <div className="keep-actions">
+          <div><button className="keep-back" onClick={back}>← Back</button><span>Think about one real event<small>Choose the closest answer</small></span></div>
+          <div><span>{showFollowUp ? "Add a short detail to continue" : "Select one answer to continue"}</span><button className="keep-primary" disabled={!canContinue} onClick={next}>{step === 5 ? "Continue" : "Next question"}<b>↗</b></button></div>
+        </div>
+      </section>
+    </main>
+  );
 }
