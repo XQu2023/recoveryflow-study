@@ -18,6 +18,22 @@ const headers = {
   "Content-Type": "application/json; charset=utf-8",
 };
 
+const adminDataKeyHash = "fdbe344d15fb255aed69e94cf2b733dbf9fb4d80a44caa529b3b93a57233b398";
+
+async function sha256Hex(value: string) {
+  const digest = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(value));
+  return Array.from(new Uint8Array(digest), (byte) => byte.toString(16).padStart(2, "0")).join("");
+}
+
+function safeEqual(left: string, right: string) {
+  if (left.length !== right.length) return false;
+  let difference = 0;
+  for (let index = 0; index < left.length; index += 1) {
+    difference |= left.charCodeAt(index) ^ right.charCodeAt(index);
+  }
+  return difference === 0;
+}
+
 function clean(value: unknown, max = 320) {
   return typeof value === "string" ? value.trim().slice(0, max) : "";
 }
@@ -42,6 +58,10 @@ Deno.serve(async (request: Request) => {
     );
 
     if (request.method === "GET") {
+      const suppliedKeyHash = await sha256Hex(request.headers.get("x-admin-data-key") ?? "");
+      if (!safeEqual(suppliedKeyHash, adminDataKeyHash)) {
+        return Response.json({ error: "Unauthorized" }, { status: 401, headers });
+      }
       const { data, error, count } = await supabase
         .from("recovery_cases")
         .select("*", { count: "exact" })

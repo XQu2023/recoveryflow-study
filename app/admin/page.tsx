@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import Link from "next/link";
 
 type RecoveryCase = {
   id: string;
@@ -43,7 +44,7 @@ export default function RecoveryAdmin() {
   const [error, setError] = useState("");
 
   useEffect(() => {
-    fetch("/api/recovery-cases", { cache: "no-store" })
+    fetch("/api/admin/recovery-cases", { cache: "no-store" })
       .then(async (response) => {
         const data = await response.json();
         if (!response.ok) throw new Error(data.error || "Unable to load cases");
@@ -71,14 +72,19 @@ export default function RecoveryAdmin() {
     URL.revokeObjectURL(url);
   }
 
+  async function logout() {
+    await fetch("/api/admin/logout", { method: "POST" });
+    window.location.assign("/admin/login");
+  }
+
   return (
     <main className="recovery-admin">
       <header>
-        <a className="keep-brand" href="/keep" aria-label="RecoveryFlow Study">
+        <Link className="keep-brand" href="/keep" aria-label="RecoveryFlow Study">
           <span className="keep-brand-mark" aria-hidden="true"><i /><i /><i /></span>
           <span>Recovery<span>Flow</span><small>RECOVERY STUDY ADMIN</small></span>
-        </a>
-        <span>UK POWERED ACCESS RECOVERY STUDY 2026</span>
+        </Link>
+        <div className="admin-header-actions"><span>UK POWERED ACCESS RECOVERY STUDY 2026</span><button onClick={logout}>Log out</button></div>
       </header>
       <section className="admin-shell">
         <div className="admin-heading">

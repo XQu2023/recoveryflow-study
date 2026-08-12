@@ -8,12 +8,12 @@ function endpoint() {
   return `${url}/functions/v1/recovery-cases`;
 }
 
-async function proxy(request: NextRequest, method: "GET" | "POST") {
+async function submit(request: NextRequest) {
   try {
     const response = await fetch(endpoint(), {
-      method,
-      headers: method === "POST" ? { "Content-Type": "application/json" } : undefined,
-      body: method === "POST" ? await request.text() : undefined,
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: await request.text(),
       cache: "no-store",
     });
     const body = await response.text();
@@ -27,10 +27,6 @@ async function proxy(request: NextRequest, method: "GET" | "POST") {
   }
 }
 
-export async function GET(request: NextRequest) {
-  return proxy(request, "GET");
-}
-
 export async function POST(request: NextRequest) {
-  return proxy(request, "POST");
+  return submit(request);
 }
