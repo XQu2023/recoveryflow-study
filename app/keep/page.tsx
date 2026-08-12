@@ -61,6 +61,8 @@ export default function KeepStudy() {
   const [step, setStep] = useState(0);
   const [answers, setAnswers] = useState<Record<number, string>>({});
   const [followUps, setFollowUps] = useState<Record<number, string>>({});
+  const [submitting, setSubmitting] = useState(false);
+  const [submitError, setSubmitError] = useState("");
   const question = questions[step];
   const answer = answers[step] || "";
   const showFollowUp = question.followUp?.when === answer;
@@ -92,9 +94,44 @@ export default function KeepStudy() {
     setFollowUps({});
   }
 
-  function submit(event: FormEvent<HTMLFormElement>) {
+  async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    setScreen("done");
+    if (submitting) return;
+    setSubmitting(true);
+    setSubmitError("");
+    const form = new FormData(event.currentTarget);
+
+    try {
+      const response = await fetch("/api/recovery-cases", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          role: answers[0],
+          stop_reason: answers[1],
+          stop_reason_other: followUps[1] || null,
+          warning_signs: answers[2],
+          warning_signs_detail: followUps[2] || null,
+          biggest_delay: answers[3],
+          biggest_delay_other: followUps[3] || null,
+          recovery_help: answers[4],
+          recovery_help_other: followUps[4] || null,
+          improvement: answers[5],
+          improvement_other: followUps[5] || null,
+          full_name: form.get("name"),
+          company: form.get("company"),
+          email: form.get("email"),
+          linkedin: form.get("linkedin") || null,
+          receive_findings: form.get("findings") === "on",
+        }),
+      });
+      const result = await response.json();
+      if (!response.ok) throw new Error(result.error || "Submission failed");
+      setScreen("done");
+    } catch {
+      setSubmitError("We couldn’t save your contribution. Please check your connection and try again.");
+    } finally {
+      setSubmitting(false);
+    }
   }
 
   if (screen === "done") {
@@ -180,7 +217,8 @@ export default function KeepStudy() {
             <label>Email Address<input name="email" type="email" required autoComplete="email" /></label>
             <label>LinkedIn <small>Optional</small><input name="linkedin" type="url" placeholder="https://linkedin.com/in/…" /></label>
             <label className="keep-checkbox"><input name="findings" type="checkbox" /><span>Send me the Recovery Study findings.</span></label>
-            <div className="keep-contact-actions"><button type="button" className="keep-back" onClick={() => { setScreen("questions"); setStep(5); }}>← Back</button><button className="keep-primary" type="submit">Submit my contribution <b>↗</b></button></div>
+            {submitError && <p className="keep-submit-error" role="alert">{submitError}</p>}
+            <div className="keep-contact-actions"><button type="button" className="keep-back" disabled={submitting} onClick={() => { setScreen("questions"); setStep(5); }}>← Back</button><button className="keep-primary" type="submit" disabled={submitting}>{submitting ? "Saving…" : "Submit my contribution"} <b>↗</b></button></div>
           </form>
         </section>
       </main>
