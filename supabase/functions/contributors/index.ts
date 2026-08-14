@@ -13,7 +13,7 @@ const allowedInterests = [
 const headers = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type, x-admin-data-key",
-  "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
+  "Access-Control-Allow-Methods": "GET, POST, DELETE, OPTIONS",
   "Cache-Control": "no-store",
   "Content-Type": "application/json; charset=utf-8",
 };
@@ -43,6 +43,10 @@ function optional(value: unknown, max = 500) {
   return result || null;
 }
 
+function validUuid(value: unknown): value is string {
+  return typeof value === "string" && /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(value);
+}
+
 Deno.serve(async (request: Request) => {
   if (request.method === "OPTIONS") return new Response("ok", { headers });
 
@@ -53,11 +57,14 @@ Deno.serve(async (request: Request) => {
       { auth: { persistSession: false, autoRefreshToken: false } },
     );
 
-    if (request.method === "GET") {
+    if (request.method === "GET" || request.method === "DELETE") {
       const suppliedKeyHash = await sha256Hex(request.headers.get("x-admin-data-key") ?? "");
       if (!safeEqual(suppliedKeyHash, adminDataKeyHash)) {
         return Response.json({ error: "Unauthorized" }, { status: 401, headers });
       }
+    }
+
+    if (request.method === "GET") {
       const { data, error, count } = await supabase
         .from("contributors")
         .select("*", { count: "exact" })
@@ -65,6 +72,22 @@ Deno.serve(async (request: Request) => {
         .limit(5000);
       if (error) throw error;
       return Response.json({ contributors: data, total: count ?? data.length }, { headers });
+    }
+
+    if (request.method === "DELETE") {
+      const body = await request.json();
+      if (!validUuid(body.id)) {
+        return Response.json({ error: "Invalid Contributor ID" }, { status: 400, headers });
+      }
+      const { data, error } = await supabase
+        .from("contributors")
+        .delete()
+        .eq("id", body.id)
+        .select("id")
+        .maybeSingle();
+      if (error) throw error;
+      if (!data) return Response.json({ error: "Contributor not found" }, { status: 404, headers });
+      return Response.json({ deleted: data.id }, { headers });
     }
 
     if (request.method !== "POST") {

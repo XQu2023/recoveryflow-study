@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 
 type RecoveryCase = {
@@ -45,29 +45,34 @@ export default function RecoveryAdmin() {
   const [query, setQuery] = useState("");
   const [loading, setLoading] = useState(true);
   const [errors, setErrors] = useState<Record<string, string>>({});
+  const [deletingId, setDeletingId] = useState("");
+  const [deleteError, setDeleteError] = useState("");
+
+  const refreshCases = useCallback(async () => {
+    const response = await fetch("/api/admin/recovery-cases", { cache: "no-store" });
+    const data = await response.json();
+    if (!response.ok) throw new Error(data.error || "Unable to load cases");
+    setCases(data.cases || []);
+    setCaseTotal(data.total || 0);
+  }, []);
+
+  const refreshContributors = useCallback(async () => {
+    const response = await fetch("/api/admin/contributors", { cache: "no-store" });
+    const data = await response.json();
+    if (!response.ok) throw new Error(data.error || "Unable to load contributors");
+    setContributors(data.contributors || []);
+    setContributorTotal(data.total || 0);
+  }, []);
 
   useEffect(() => {
-    Promise.allSettled([
-      fetch("/api/admin/recovery-cases", { cache: "no-store" }).then(async (response) => {
-        const data = await response.json();
-        if (!response.ok) throw new Error(data.error || "Unable to load cases");
-        setCases(data.cases || []);
-        setCaseTotal(data.total || 0);
-      }),
-      fetch("/api/admin/contributors", { cache: "no-store" }).then(async (response) => {
-        const data = await response.json();
-        if (!response.ok) throw new Error(data.error || "Unable to load contributors");
-        setContributors(data.contributors || []);
-        setContributorTotal(data.total || 0);
-      }),
-    ]).then((results) => {
+    Promise.allSettled([refreshCases(), refreshContributors()]).then((results) => {
       const nextErrors: Record<string, string> = {};
       if (results[0].status === "rejected") nextErrors.cases = "Recovery Cases could not be loaded. Please refresh and try again.";
       if (results[1].status === "rejected") nextErrors.contributors = "Contributors could not be loaded. Please refresh and try again.";
       setErrors(nextErrors);
       setLoading(false);
     });
-  }, []);
+  }, [refreshCases, refreshContributors]);
 
   const filteredCases = useMemo(() => {
     const needle = query.trim().toLowerCase();
@@ -103,6 +108,30 @@ export default function RecoveryAdmin() {
     window.location.assign("/admin/login");
   }
 
+  async function deleteRecord(kind: "cases" | "contributors", id: string) {
+    const message = kind === "cases" ? "Delete this Recovery Case permanently?" : "Delete this Contributor permanently?";
+    if (!window.confirm(message)) return;
+
+    setDeletingId(id);
+    setDeleteError("");
+    try {
+      const endpoint = kind === "cases" ? "/api/admin/recovery-cases" : "/api/admin/contributors";
+      const response = await fetch(endpoint, {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id }),
+      });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error || "Unable to delete this record");
+      if (kind === "cases") await refreshCases();
+      else await refreshContributors();
+    } catch (error) {
+      setDeleteError(error instanceof Error ? error.message : "Unable to delete this record. Please try again.");
+    } finally {
+      setDeletingId("");
+    }
+  }
+
   const activeError = errors[view];
   const activeCount = view === "cases" ? filteredCases.length : filteredContributors.length;
 
@@ -133,6 +162,7 @@ export default function RecoveryAdmin() {
         </div>
 
         {activeError && <p className="admin-error" role="alert">{activeError}</p>}
+        {deleteError && <p className="admin-error" role="alert">{deleteError}</p>}
         {!activeError && loading && <p className="admin-state">Loading {view === "cases" ? "Recovery Cases" : "Contributors"}…</p>}
         {!activeError && !loading && activeCount === 0 && <p className="admin-state">{query ? `No ${view === "cases" ? "Recovery Cases" : "Contributors"} match your search.` : `No ${view === "cases" ? "submissions" : "contributors"} yet.`}</p>}
 
@@ -140,7 +170,7 @@ export default function RecoveryAdmin() {
           <div className="admin-cases">
             {filteredCases.map((item) => (
               <article key={item.id}>
-                <div className="admin-case-head"><div><span>{item.role}</span><h2>{item.company}</h2><p>{item.full_name} · <a href={`mailto:${item.email}`}>{item.email}</a></p></div><time>{new Date(item.created_at).toLocaleString("en-GB", { dateStyle: "medium", timeStyle: "short" })}</time></div>
+                <div className="admin-case-head"><div><span>{item.role}</span><h2>{item.company}</h2><p>{item.full_name} · <a href={`mailto:${item.email}`}>{item.email}</a></p></div><div className="admin-case-actions"><time>{new Date(item.created_at).toLocaleString("en-GB", { dateStyle: "medium", timeStyle: "short" })}</time><button className="admin-delete" onClick={() => deleteRecord("cases", item.id)} disabled={!!deletingId}>{deletingId === item.id ? "Deleting…" : "Delete"}</button></div></div>
                 <dl>
                   <div><dt>Machine stopped</dt><dd>{item.stop_reason}{item.stop_reason_other ? ` — ${item.stop_reason_other}` : ""}</dd></div>
                   <div><dt>Warning signs</dt><dd>{item.warning_signs}{item.warning_signs_detail ? ` — ${item.warning_signs_detail}` : ""}</dd></div>
@@ -156,7 +186,7 @@ export default function RecoveryAdmin() {
           <div className="admin-cases admin-contributors">
             {filteredContributors.map((item) => (
               <article key={item.id}>
-                <div className="admin-case-head"><div><span>{item.status}</span><h2>{item.full_name}</h2><p>{item.role} · {item.company} · <a href={`mailto:${item.email}`}>{item.email}</a></p></div><time>{new Date(item.joined_at).toLocaleString("en-GB", { dateStyle: "medium", timeStyle: "short" })}</time></div>
+                <div className="admin-case-head"><div><span>{item.status}</span><h2>{item.full_name}</h2><p>{item.role} · {item.company} · <a href={`mailto:${item.email}`}>{item.email}</a></p></div><div className="admin-case-actions"><time>{new Date(item.joined_at).toLocaleString("en-GB", { dateStyle: "medium", timeStyle: "short" })}</time><button className="admin-delete" onClick={() => deleteRecord("contributors", item.id)} disabled={!!deletingId}>{deletingId === item.id ? "Deleting…" : "Delete"}</button></div></div>
                 <dl>
                   <div><dt>Contributor ID</dt><dd>{item.id}</dd></div>
                   <div><dt>Joined at</dt><dd>{new Date(item.joined_at).toLocaleString("en-GB")}</dd></div>
