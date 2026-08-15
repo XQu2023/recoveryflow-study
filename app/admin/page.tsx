@@ -4,10 +4,15 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 
 type RecoveryCase = {
-  id: string; created_at: string; role: string; stop_reason: string; stop_reason_other: string | null;
-  warning_signs: string; warning_signs_detail: string | null; biggest_delay: string; biggest_delay_other: string | null;
-  recovery_help: string; recovery_help_other: string | null; improvement: string; improvement_other: string | null;
-  full_name: string; company: string; email: string; linkedin: string | null; receive_findings: boolean;
+  id: string; submitted_at: string; machine_type: string; machine_type_other: string | null;
+  first_report_source: string; first_report_source_other: string | null; information_sufficient: string;
+  information_available: string[]; information_available_other: string | null; first_action: string;
+  first_action_other: string | null; first_action_effectiveness: string; time_to_right_way_forward: string;
+  recovery_requirements: string[]; recovery_requirements_other: string | null; total_downtime: string;
+  biggest_time_loss: string; biggest_time_loss_other: string | null; breakdown_frequency: string;
+  most_helpful_next_breakdown: string; most_helpful_next_breakdown_other: string | null; role: string;
+  role_other: string | null; trial_interest: string; contact_name: string | null; company: string | null;
+  contact_details: string | null; source: string; schema_version: number;
 };
 
 type Contributor = {
@@ -17,9 +22,12 @@ type Contributor = {
 };
 
 const caseColumns: Array<keyof RecoveryCase> = [
-  "id", "created_at", "role", "stop_reason", "stop_reason_other", "warning_signs", "warning_signs_detail",
-  "biggest_delay", "biggest_delay_other", "recovery_help", "recovery_help_other", "improvement",
-  "improvement_other", "full_name", "company", "email", "linkedin", "receive_findings",
+  "id", "submitted_at", "machine_type", "machine_type_other", "first_report_source", "first_report_source_other",
+  "information_sufficient", "information_available", "information_available_other", "first_action", "first_action_other",
+  "first_action_effectiveness", "time_to_right_way_forward", "recovery_requirements", "recovery_requirements_other",
+  "total_downtime", "biggest_time_loss", "biggest_time_loss_other", "breakdown_frequency",
+  "most_helpful_next_breakdown", "most_helpful_next_breakdown_other", "role", "role_other", "trial_interest",
+  "contact_name", "company", "contact_details", "source", "schema_version",
 ];
 
 const contributorColumns: Array<keyof Contributor> = [
@@ -65,6 +73,8 @@ export default function RecoveryAdmin() {
   }, []);
 
   useEffect(() => {
+    // These callbacks synchronise the protected server data after the admin shell mounts.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     Promise.allSettled([refreshCases(), refreshContributors()]).then((results) => {
       const nextErrors: Record<string, string> = {};
       if (results[0].status === "rejected") nextErrors.cases = "Recovery Cases could not be loaded. Please refresh and try again.";
@@ -147,17 +157,17 @@ export default function RecoveryAdmin() {
 
       <section className="admin-shell">
         <div className="admin-tabs" role="tablist" aria-label="Admin data">
-          <button role="tab" aria-selected={view === "cases"} className={view === "cases" ? "active" : ""} onClick={() => changeView("cases")}>Recovery Cases <b>{loading ? "—" : caseTotal}</b></button>
+          <button role="tab" aria-selected={view === "cases"} className={view === "cases" ? "active" : ""} onClick={() => changeView("cases")}>Breakdown Responses <b>{loading ? "—" : caseTotal}</b></button>
           <button role="tab" aria-selected={view === "contributors"} className={view === "contributors" ? "active" : ""} onClick={() => changeView("contributors")}>Contributors <b>{loading ? "—" : contributorTotal}</b></button>
         </div>
 
         <div className="admin-heading">
-          <div><p>RECOVERYFLOW / DATA</p><h1>{view === "cases" ? "Recovery Cases" : "Contributors"}</h1></div>
+          <div><p>RECOVERYFLOW / DATA</p><h1>{view === "cases" ? "Breakdown Responses" : "Contributors"}</h1></div>
           <div className="admin-total"><span>{view === "cases" ? "Total submissions" : "Total contributors"}</span><strong>{loading ? "—" : view === "cases" ? caseTotal : contributorTotal}</strong></div>
         </div>
 
         <div className="admin-toolbar">
-          <label><span>{view === "cases" ? "Search cases" : "Search contributors"}</span><input value={query} onChange={(event) => setQuery(event.target.value)} placeholder={view === "cases" ? "Name, company, email or answer…" : "Name, company, role, email or interest…"} /></label>
+          <label><span>{view === "cases" ? "Search responses" : "Search contributors"}</span><input value={query} onChange={(event) => setQuery(event.target.value)} placeholder={view === "cases" ? "Role, machine, answer or contact…" : "Name, company, role, email or interest…"} /></label>
           <button onClick={exportCsv} disabled={loading || activeCount === 0}>Export CSV <b>↓</b></button>
         </div>
 
@@ -170,14 +180,23 @@ export default function RecoveryAdmin() {
           <div className="admin-cases">
             {filteredCases.map((item) => (
               <article key={item.id}>
-                <div className="admin-case-head"><div><span>{item.role}</span><h2>{item.company}</h2><p>{item.full_name} · <a href={`mailto:${item.email}`}>{item.email}</a></p></div><div className="admin-case-actions"><time>{new Date(item.created_at).toLocaleString("en-GB", { dateStyle: "medium", timeStyle: "short" })}</time><button className="admin-delete" onClick={() => deleteRecord("cases", item.id)} disabled={!!deletingId}>{deletingId === item.id ? "Deleting…" : "Delete"}</button></div></div>
+                <div className="admin-case-head"><div><span>{item.role}{item.role_other ? ` — ${item.role_other}` : ""}</span><h2>{item.machine_type}{item.machine_type_other ? ` — ${item.machine_type_other}` : ""}</h2><p>{item.contact_name || "Anonymous response"}{item.company ? ` · ${item.company}` : ""}{item.contact_details ? ` · ${item.contact_details}` : ""}</p></div><div className="admin-case-actions"><time>{new Date(item.submitted_at).toLocaleString("en-GB", { dateStyle: "medium", timeStyle: "short" })}</time><button className="admin-delete" onClick={() => deleteRecord("cases", item.id)} disabled={!!deletingId}>{deletingId === item.id ? "Deleting…" : "Delete"}</button></div></div>
                 <dl>
-                  <div><dt>Machine stopped</dt><dd>{item.stop_reason}{item.stop_reason_other ? ` — ${item.stop_reason_other}` : ""}</dd></div>
-                  <div><dt>Warning signs</dt><dd>{item.warning_signs}{item.warning_signs_detail ? ` — ${item.warning_signs_detail}` : ""}</dd></div>
-                  <div><dt>Biggest delay</dt><dd>{item.biggest_delay}{item.biggest_delay_other ? ` — ${item.biggest_delay_other}` : ""}</dd></div>
-                  <div><dt>What helped</dt><dd>{item.recovery_help}{item.recovery_help_other ? ` — ${item.recovery_help_other}` : ""}</dd></div>
-                  <div><dt>One improvement</dt><dd>{item.improvement}{item.improvement_other ? ` — ${item.improvement_other}` : ""}</dd></div>
-                  <div><dt>Study findings</dt><dd>{item.receive_findings ? "Requested" : "Not requested"}</dd></div>
+                  <div><dt>Response ID</dt><dd>{item.id}</dd></div>
+                  <div><dt>First report</dt><dd>{item.first_report_source}{item.first_report_source_other ? ` — ${item.first_report_source_other}` : ""}</dd></div>
+                  <div><dt>Enough information</dt><dd>{item.information_sufficient}</dd></div>
+                  <div className="admin-record-wide"><dt>Information available</dt><dd>{item.information_available.join(" · ")}{item.information_available_other ? ` — ${item.information_available_other}` : ""}</dd></div>
+                  <div><dt>First action</dt><dd>{item.first_action}{item.first_action_other ? ` — ${item.first_action_other}` : ""}</dd></div>
+                  <div><dt>Right next step</dt><dd>{item.first_action_effectiveness}</dd></div>
+                  <div><dt>Time to right way forward</dt><dd>{item.time_to_right_way_forward}</dd></div>
+                  <div className="admin-record-wide"><dt>Recovery requirements</dt><dd>{item.recovery_requirements.join(" · ")}{item.recovery_requirements_other ? ` — ${item.recovery_requirements_other}` : ""}</dd></div>
+                  <div><dt>Total downtime</dt><dd>{item.total_downtime}</dd></div>
+                  <div><dt>Biggest time loss</dt><dd>{item.biggest_time_loss}{item.biggest_time_loss_other ? ` — ${item.biggest_time_loss_other}` : ""}</dd></div>
+                  <div><dt>Breakdown frequency</dt><dd>{item.breakdown_frequency}</dd></div>
+                  <div className="admin-record-wide"><dt>Most helpful next time</dt><dd>{item.most_helpful_next_breakdown}{item.most_helpful_next_breakdown_other ? ` — ${item.most_helpful_next_breakdown_other}` : ""}</dd></div>
+                  <div><dt>Future trial interest</dt><dd>{item.trial_interest}</dd></div>
+                  <div><dt>Contact</dt><dd>{item.contact_name || "Not provided"}{item.company ? ` · ${item.company}` : ""}{item.contact_details ? ` · ${item.contact_details}` : ""}</dd></div>
+                  <div><dt>Schema</dt><dd>V{item.schema_version}</dd></div>
                 </dl>
               </article>
             ))}

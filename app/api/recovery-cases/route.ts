@@ -17,6 +17,29 @@ async function submit(request: NextRequest) {
       cache: "no-store",
     });
     const body = await response.text();
+
+    if (response.ok) {
+      let result: unknown;
+      try {
+        result = JSON.parse(body);
+      } catch {
+        return NextResponse.json({ error: "Data service returned an invalid response" }, { status: 502 });
+      }
+
+      const payload = result as {
+        schema_version?: unknown;
+        response?: { id?: unknown; submitted_at?: unknown };
+      };
+      const persisted =
+        payload.schema_version === 2 &&
+        typeof payload.response?.id === "string" &&
+        typeof payload.response?.submitted_at === "string";
+
+      if (!persisted) {
+        return NextResponse.json({ error: "Data service did not confirm persistence" }, { status: 502 });
+      }
+    }
+
     return new NextResponse(body, {
       status: response.status,
       headers: { "Content-Type": "application/json; charset=utf-8", "Cache-Control": "no-store" },
