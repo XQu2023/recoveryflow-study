@@ -11,6 +11,15 @@ const headers = {
 };
 
 const adminDataKeyHash = "fdbe344d15fb255aed69e94cf2b733dbf9fb4d80a44caa529b3b93a57233b398";
+const adminFields = [
+  "id", "submitted_at", "machine_type", "machine_type_other", "first_report_source", "first_report_source_other",
+  "information_sufficient", "information_available", "information_available_other", "first_action", "first_action_other",
+  "first_action_effectiveness", "time_to_right_way_forward", "recovery_requirements", "recovery_requirements_other",
+  "total_downtime", "biggest_time_loss", "biggest_time_loss_other", "breakdown_frequency",
+  "most_helpful_next_breakdown", "most_helpful_next_breakdown_other", "role", "role_other", "trial_interest",
+  "contact_name", "company", "contact_details", "wants_findings", "findings_email", "findings_requested_at",
+  "source", "schema_version",
+].join(",");
 
 async function sha256Hex(value: string) {
   const digest = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(value));
@@ -26,6 +35,11 @@ function safeEqual(left: string, right: string) {
 
 function validUuid(value: unknown): value is string {
   return typeof value === "string" && /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(value);
+}
+
+function createFindingsToken() {
+  const bytes = crypto.getRandomValues(new Uint8Array(32));
+  return btoa(String.fromCharCode(...bytes)).replaceAll("+", "-").replaceAll("/", "_").replace(/=+$/, "");
 }
 
 Deno.serve(async (request: Request) => {
@@ -46,7 +60,7 @@ Deno.serve(async (request: Request) => {
     if (request.method === "GET") {
       const { data, error, count } = await supabase
         .from("recovery_cases")
-        .select("*", { count: "exact" })
+        .select(adminFields, { count: "exact" })
         .order("submitted_at", { ascending: false })
         .limit(5000);
       if (error) throw error;
@@ -69,9 +83,15 @@ Deno.serve(async (request: Request) => {
 
     if (!valid) return Response.json({ error: "Please complete all required answers." }, { status: 400, headers });
 
-    const { data, error } = await supabase.from("recovery_cases").insert(record).select("id, submitted_at").single();
+    const findingsToken = createFindingsToken();
+    const findingsTokenHash = await sha256Hex(findingsToken);
+    const { data, error } = await supabase
+      .from("recovery_cases")
+      .insert({ ...record, findings_token_hash: findingsTokenHash })
+      .select("id, submitted_at")
+      .single();
     if (error) throw error;
-    return Response.json({ response: data, schema_version: 2 }, { status: 201, headers });
+    return Response.json({ response: data, findings_token: findingsToken, schema_version: 2 }, { status: 201, headers });
   } catch (error) {
     console.error(error);
     return Response.json({ error: "Unable to save this response right now." }, { status: 500, headers });

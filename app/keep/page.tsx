@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { FormEvent, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 
 type AnswerKey =
@@ -37,6 +37,21 @@ type Question = {
   multiple?: boolean;
   other?: { option: string; key: OtherKey; label: string };
 };
+
+type FindingsReceipt = {
+  responseId: string;
+  token: string;
+  email: string;
+  trialInterest: string;
+};
+
+const findingsReceiptKey = "recoveryflow_findings_receipt";
+const emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+function normaliseEmail(value: string) {
+  const email = value.trim().toLowerCase();
+  return emailPattern.test(email) ? email : "";
+}
 
 const questions: Question[] = [
   {
@@ -152,8 +167,34 @@ export default function KeepStudy() {
   const [contact, setContact] = useState({ contact_name: "", company: "", contact_details: "" });
   const [submitting, setSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState("");
+  const [findingsReceipt, setFindingsReceipt] = useState<FindingsReceipt | null>(null);
+  const [findingsMode, setFindingsMode] = useState<"closed" | "confirm" | "form" | "success">("closed");
+  const [findingsEmail, setFindingsEmail] = useState("");
+  const [findingsError, setFindingsError] = useState("");
+  const [findingsSubmitting, setFindingsSubmitting] = useState(false);
   const submissionLocked = useRef(false);
   const trialContactRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    try {
+      const saved = window.sessionStorage.getItem(findingsReceiptKey);
+      if (!saved) return;
+      const receipt = JSON.parse(saved) as Partial<FindingsReceipt>;
+      if (
+        typeof receipt.responseId !== "string" ||
+        typeof receipt.token !== "string" ||
+        typeof receipt.email !== "string" ||
+        typeof receipt.trialInterest !== "string"
+      ) return;
+      // Restore only the server-confirmed receipt needed to finish the findings request after a refresh.
+      // eslint-disable-next-line react-hooks/set-state-in-effect
+      setFindingsReceipt(receipt as FindingsReceipt);
+      setAnswers({ trial_interest: receipt.trialInterest });
+      setScreen("done");
+    } catch {
+      window.sessionStorage.removeItem(findingsReceiptKey);
+    }
+  }, []);
 
   const question = questions[step];
   const answer = answers[question.key];
@@ -213,8 +254,24 @@ export default function KeepStudy() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ ...answers, ...otherAnswers, ...contact }),
       });
-      const result = await response.json();
+      const result = await response.json() as {
+        error?: string;
+        findings_token?: unknown;
+        response?: { id?: unknown; submitted_at?: unknown };
+      };
       if (!response.ok) throw new Error(result.error || "Submission failed");
+      if (typeof result.response?.id !== "string" || typeof result.findings_token !== "string") {
+        throw new Error("Submission was not confirmed");
+      }
+      const trialInterest = typeof answers.trial_interest === "string" ? answers.trial_interest : "";
+      const receipt: FindingsReceipt = {
+        responseId: result.response.id,
+        token: result.findings_token,
+        email: normaliseEmail(contact.contact_details),
+        trialInterest,
+      };
+      setFindingsReceipt(receipt);
+      window.sessionStorage.setItem(findingsReceiptKey, JSON.stringify(receipt));
       setScreen("done");
       window.scrollTo({ top: 0 });
     } catch {
@@ -225,6 +282,50 @@ export default function KeepStudy() {
     }
   }
 
+  function openFindings() {
+    if (!findingsReceipt) {
+      setFindingsError("We couldn’t add you to the list. Please try again.");
+      return;
+    }
+    setFindingsError("");
+    setFindingsEmail(findingsReceipt.email);
+    setFindingsMode(findingsReceipt.email ? "confirm" : "form");
+  }
+
+  async function requestFindings(event?: FormEvent<HTMLFormElement>) {
+    event?.preventDefault();
+    if (findingsSubmitting || !findingsReceipt) return;
+
+    const email = normaliseEmail(findingsEmail || findingsReceipt.email);
+    if (!email) {
+      setFindingsError("Enter a valid email address.");
+      return;
+    }
+
+    setFindingsSubmitting(true);
+    setFindingsError("");
+    try {
+      const response = await fetch("/api/findings-interest", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ response_id: findingsReceipt.responseId, token: findingsReceipt.token, email }),
+      });
+      const result = await response.json();
+      if (!response.ok) throw new Error(result.error || "Unable to register findings interest");
+
+      const updatedReceipt = { ...findingsReceipt, email };
+      setFindingsReceipt(updatedReceipt);
+      window.sessionStorage.setItem(findingsReceiptKey, JSON.stringify(updatedReceipt));
+      setFindingsMode("success");
+    } catch (error) {
+      setFindingsError(error instanceof Error && error.message === "Enter a valid email address."
+        ? error.message
+        : "We couldn’t add you to the list. Please try again.");
+    } finally {
+      setFindingsSubmitting(false);
+    }
+  }
+
   if (screen === "done") {
     const followUp = answers.trial_interest === "Yes — happy to try it" || answers.trial_interest === "Maybe — tell me more";
     return (
@@ -232,13 +333,34 @@ export default function KeepStudy() {
         <header className="keep-header"><KeepBrand /><span>RESPONSE RECORDED</span></header>
         <section>
           <div className="keep-success">✓</div>
-          <p className="keep-kicker">MEWP BREAKDOWN &amp; RECOVERY SURVEY</p>
+          <p className="keep-kicker">RESPONSE RECORDED</p>
           <h1>Thanks for sharing your experience.</h1>
-          <p>It helps us understand where time is being lost during breakdowns — and what could get machines back to work quicker.<br /><br />We’ll share what we learn with contributors.{followUp && <><br /><br />We’ll be in touch about trying this on a future breakdown.</>}</p>
+          <p className="keep-done-summary">It helps us understand where time is being lost during breakdowns — and what could get machines back to work quicker.{followUp && <span>We’ll be in touch about trying this on a future breakdown.</span>}</p>
           <strong className="keep-done-flag">KEEP THE UK WORKING.</strong>
+          {findingsMode !== "closed" && (
+            <div className={`keep-findings-panel${findingsMode === "success" ? " is-success" : ""}`} aria-live="polite">
+              {findingsMode === "success" ? (
+                <><strong>You’re on the list.</strong><p>We’ll send you the findings when they’re ready.</p></>
+              ) : findingsMode === "confirm" ? (
+                <>
+                  <p>Send the findings to:</p>
+                  <strong>{findingsReceipt?.email}</strong>
+                  {findingsError && <span role="alert">{findingsError}</span>}
+                  <button type="button" onClick={() => requestFindings()} disabled={findingsSubmitting}>{findingsSubmitting ? "Saving…" : "Yes, send them"}<b>→</b></button>
+                </>
+              ) : (
+                <form onSubmit={requestFindings} noValidate>
+                  <label htmlFor="findings-email">Where should we send the findings?</label>
+                  <input id="findings-email" type="email" value={findingsEmail} onChange={(event) => { setFindingsEmail(event.target.value); setFindingsError(""); }} autoComplete="email" placeholder="Email address" aria-invalid={!!findingsError} />
+                  {findingsError && <span role="alert">{findingsError}</span>}
+                  <button type="submit" disabled={findingsSubmitting}>{findingsSubmitting ? "Saving…" : "Send me the findings"}<b>→</b></button>
+                </form>
+              )}
+            </div>
+          )}
           <div className="keep-done-actions">
-            <Link href="/contributors#join">Receive the Recovery Study findings <b>↗</b></Link>
-            <Link href="/">About RecoveryFlow <b>↗</b></Link>
+            {findingsMode === "closed" && <button className="keep-findings-trigger" type="button" onClick={openFindings}>Send me the findings <b>↗</b></button>}
+            <Link className="keep-about-link" href="/">About RecoveryFlow <b>↗</b></Link>
           </div>
         </section>
       </main>

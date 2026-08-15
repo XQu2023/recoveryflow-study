@@ -5,10 +5,10 @@ export const dynamic = "force-dynamic";
 function endpoint() {
   const url = process.env.SUPABASE_URL;
   if (!url) throw new Error("SUPABASE_URL is not configured");
-  return `${url}/functions/v1/recovery-cases`;
+  return `${url}/functions/v1/findings-interest`;
 }
 
-async function submit(request: NextRequest) {
+export async function POST(request: NextRequest) {
   try {
     const response = await fetch(endpoint(), {
       method: "POST",
@@ -26,18 +26,15 @@ async function submit(request: NextRequest) {
         return NextResponse.json({ error: "Data service returned an invalid response" }, { status: 502 });
       }
 
-      const payload = result as {
-        schema_version?: unknown;
-        findings_token?: unknown;
-        response?: { id?: unknown; submitted_at?: unknown };
-      };
-      const persisted =
-        payload.schema_version === 2 &&
-        typeof payload.findings_token === "string" &&
-        typeof payload.response?.id === "string" &&
-        typeof payload.response?.submitted_at === "string";
-
-      if (!persisted) {
+      const persisted = (result as {
+        response?: { id?: unknown; wants_findings?: unknown; findings_email?: unknown; findings_requested_at?: unknown };
+      }).response;
+      if (
+        typeof persisted?.id !== "string" ||
+        persisted.wants_findings !== true ||
+        typeof persisted.findings_email !== "string" ||
+        typeof persisted.findings_requested_at !== "string"
+      ) {
         return NextResponse.json({ error: "Data service did not confirm persistence" }, { status: 502 });
       }
     }
@@ -50,8 +47,4 @@ async function submit(request: NextRequest) {
     console.error(error);
     return NextResponse.json({ error: "Data service unavailable" }, { status: 503 });
   }
-}
-
-export async function POST(request: NextRequest) {
-  return submit(request);
 }

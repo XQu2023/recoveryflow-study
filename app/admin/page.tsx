@@ -12,7 +12,8 @@ type RecoveryCase = {
   biggest_time_loss: string; biggest_time_loss_other: string | null; breakdown_frequency: string;
   most_helpful_next_breakdown: string; most_helpful_next_breakdown_other: string | null; role: string;
   role_other: string | null; trial_interest: string; contact_name: string | null; company: string | null;
-  contact_details: string | null; source: string; schema_version: number;
+  contact_details: string | null; wants_findings: boolean; findings_email: string | null;
+  findings_requested_at: string | null; source: string; schema_version: number;
 };
 
 type Contributor = {
@@ -27,7 +28,8 @@ const caseColumns: Array<keyof RecoveryCase> = [
   "first_action_effectiveness", "time_to_right_way_forward", "recovery_requirements", "recovery_requirements_other",
   "total_downtime", "biggest_time_loss", "biggest_time_loss_other", "breakdown_frequency",
   "most_helpful_next_breakdown", "most_helpful_next_breakdown_other", "role", "role_other", "trial_interest",
-  "contact_name", "company", "contact_details", "source", "schema_version",
+  "contact_name", "company", "contact_details", "wants_findings", "findings_email", "findings_requested_at",
+  "source", "schema_version",
 ];
 
 const contributorColumns: Array<keyof Contributor> = [
@@ -196,6 +198,9 @@ export default function RecoveryAdmin() {
                   <div className="admin-record-wide"><dt>Most helpful next time</dt><dd>{item.most_helpful_next_breakdown}{item.most_helpful_next_breakdown_other ? ` — ${item.most_helpful_next_breakdown_other}` : ""}</dd></div>
                   <div><dt>Future trial interest</dt><dd>{item.trial_interest}</dd></div>
                   <div><dt>Contact</dt><dd>{item.contact_name || "Not provided"}{item.company ? ` · ${item.company}` : ""}{item.contact_details ? ` · ${item.contact_details}` : ""}</dd></div>
+                  <div><dt>Findings</dt><dd>{item.wants_findings ? "Requested" : "Not requested"}</dd></div>
+                  <div><dt>Findings email</dt><dd>{item.findings_email ? <a href={`mailto:${item.findings_email}`}>{item.findings_email}</a> : "Not provided"}</dd></div>
+                  <div><dt>Findings requested at</dt><dd>{item.findings_requested_at ? new Date(item.findings_requested_at).toLocaleString("en-GB") : "Not requested"}</dd></div>
                   <div><dt>Schema</dt><dd>V{item.schema_version}</dd></div>
                 </dl>
               </article>
