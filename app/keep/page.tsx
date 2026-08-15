@@ -4,38 +4,48 @@ import { FormEvent, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 
 type AnswerKey =
-  | "machine_type"
-  | "first_report_source"
-  | "information_sufficient"
-  | "information_available"
-  | "first_action"
-  | "first_action_effectiveness"
-  | "time_to_right_way_forward"
-  | "recovery_requirements"
-  | "total_downtime"
-  | "biggest_time_loss"
-  | "breakdown_frequency"
-  | "most_helpful_next_breakdown"
-  | "role"
-  | "trial_interest";
+  | "role_v1"
+  | "fleet_size"
+  | "delay_frequency"
+  | "machine_type_v1"
+  | "main_delay"
+  | "other_delays"
+  | "additional_resources_needed"
+  | "additional_resources"
+  | "resource_source"
+  | "resource_arrangement"
+  | "time_to_resource"
+  | "current_recovery_method"
+  | "recovery_outcome"
+  | "avoidable_time"
+  | "biggest_difference"
+  | "customer_working_time_lost"
+  | "tomorrow_easier"
+  | "findings_preference"
+  | "follow_up_chat";
 
 type OtherKey =
-  | "machine_type_other"
-  | "first_report_source_other"
-  | "information_available_other"
-  | "first_action_other"
-  | "recovery_requirements_other"
-  | "biggest_time_loss_other"
-  | "most_helpful_next_breakdown_other"
-  | "role_other";
+  | "role_v1_other"
+  | "machine_type_v1_other"
+  | "main_delay_other"
+  | "other_delays_other"
+  | "additional_resources_other"
+  | "resource_source_other"
+  | "resource_arrangement_other"
+  | "recovery_outcome_other"
+  | "biggest_difference_other";
 
 type Question = {
   key: AnswerKey;
   part: string;
   title: string;
-  options: string[];
+  options?: string[];
+  helper?: string;
+  kind?: "choice" | "text";
   multiple?: boolean;
+  exclusiveOption?: string;
   other?: { option: string; key: OtherKey; label: string };
+  condition?: { key: AnswerKey; values: string[] };
 };
 
 type FindingsReceipt = {
@@ -55,98 +65,138 @@ function normaliseEmail(value: string) {
 
 const questions: Question[] = [
   {
-    key: "machine_type",
-    part: "Part 1 — Think of one recent breakdown",
-    title: "What type of machine was it?",
-    options: ["Boom", "Scissor", "Vertical mast", "Other / Not sure"],
-    other: { option: "Other / Not sure", key: "machine_type_other", label: "If other, add a short description (optional)" },
+    key: "role_v1",
+    part: "Question 1 — Role",
+    title: "What's your role?",
+    options: ["Service Manager / Service Controller", "Engineer / Technician", "Fleet / Operations", "Hire Desk / Branch", "Owner / Director", "Manufacturer / OEM", "Other"],
+    other: { option: "Other", key: "role_v1_other", label: "Please tell us more (optional)" },
   },
   {
-    key: "first_report_source",
-    part: "Part 1 — Think of one recent breakdown",
-    title: "How did you first hear about the problem?",
-    options: ["Operator / site contact", "Hire desk", "Engineer", "Telematics / remote alert", "Other"],
-    other: { option: "Other", key: "first_report_source_other", label: "Please tell us more (optional)" },
+    key: "fleet_size",
+    part: "Question 2 — Fleet size",
+    title: "Roughly how big is your powered access fleet?",
+    options: ["Under 50 machines", "50–249", "250–999", "1,000+", "Not applicable", "Prefer not to say"],
   },
   {
-    key: "information_sufficient",
-    part: "Part 1 — Think of one recent breakdown",
-    title: "At that point, did you have enough information to know what to do next?",
-    options: ["Yes", "Partly", "No"],
+    key: "delay_frequency",
+    part: "Question 3 — Frequency",
+    title: "How often does a breakdown take longer to sort than you think it should?",
+    options: ["Most days", "A few times a week", "About once a week", "A few times a month", "Less often", "Hard to say"],
   },
   {
-    key: "information_available",
-    part: "Part 1 — Think of one recent breakdown",
-    title: "What did you have to work with?",
+    key: "machine_type_v1",
+    part: "Question 4 — Machine type",
+    title: "Think about the last time that happened. What type of machine was it?",
+    options: ["Scissor lift", "Boom lift", "Other", "Not sure"],
+    other: { option: "Other", key: "machine_type_v1_other", label: "Please tell us more (optional)" },
+  },
+  {
+    key: "main_delay",
+    part: "Question 5 — Main delay",
+    title: "What held things up the most?",
+    helper: "Choose the main one.",
+    options: ["Getting the right information from site", "Working out what was actually wrong", "Finding the right engineer", "Waiting for an engineer to become available", "Identifying the right part", "Waiting for the part", "Waiting for manufacturer / OEM support", "Arranging transport", "Finding a replacement / cross-hire machine", "Communication / coordination", "Something else"],
+    other: { option: "Something else", key: "main_delay_other", label: "Please tell us more (optional)" },
+  },
+  {
+    key: "other_delays",
+    part: "Question 6 — Other delays",
+    title: "Did anything else add significant time?",
+    helper: "Select any that apply.",
     multiple: true,
-    options: ["Description of the problem", "Fault code", "Photos / video", "Machine details", "Service / breakdown history", "Telematics / remote data", "Other"],
-    other: { option: "Other", key: "information_available_other", label: "Please tell us more (optional)" },
+    exclusiveOption: "No — that was the main issue",
+    options: ["Getting the right information from site", "Working out what was actually wrong", "Finding the right engineer", "Waiting for an engineer to become available", "Identifying the right part", "Waiting for the part", "Waiting for manufacturer / OEM support", "Arranging transport", "Finding a replacement / cross-hire machine", "Communication / coordination", "No — that was the main issue", "Something else"],
+    other: { option: "Something else", key: "other_delays_other", label: "Please tell us more (optional)" },
   },
   {
-    key: "first_action",
-    part: "Part 1 — Think of one recent breakdown",
-    title: "What did you do next?",
-    options: ["Remote checks with the operator/customer", "Sent / arranged an engineer", "Contacted the manufacturer/OEM", "Checked / arranged a part", "Arranged another machine", "Asked for more information", "Other"],
-    other: { option: "Other", key: "first_action_other", label: "Please tell us more (optional)" },
+    key: "additional_resources_needed",
+    part: "Question 7 — Additional resources",
+    title: "Did you need any help or resources beyond what was immediately available to your team?",
+    options: ["Yes", "No", "Not sure"],
   },
   {
-    key: "first_action_effectiveness",
-    part: "Part 1 — Think of one recent breakdown",
-    title: "Did that turn out to be the right next step?",
-    options: ["Yes", "Partly", "No — we had to change approach", "Not sure"],
-  },
-  {
-    key: "time_to_right_way_forward",
-    part: "Part 1 — Think of one recent breakdown",
-    title: "Roughly how long was it before you knew the right way forward?",
-    options: ["Under 15 mins", "15–30 mins", "30–60 mins", "1–2 hours", "2–4 hours", "4+ hours", "Not sure"],
-  },
-  {
-    key: "recovery_requirements",
-    part: "Part 1 — Think of one recent breakdown",
-    title: "What was eventually needed to get the machine working again?",
+    key: "additional_resources",
+    part: "Question 7 — Additional resources",
+    title: "What did you need?",
+    helper: "Select any that apply.",
     multiple: true,
-    options: ["Remote fix", "Engineer visit", "Another engineer visit", "Part(s)", "Manufacturer/OEM support", "Replacement machine / cross-hire", "Transport", "Other"],
-    other: { option: "Other", key: "recovery_requirements_other", label: "Please tell us more (optional)" },
+    options: ["Engineer", "Manufacturer / OEM support", "Technical advice", "Part(s)", "Transport", "Replacement / cross-hire machine", "Other"],
+    other: { option: "Other", key: "additional_resources_other", label: "Please tell us more (optional)" },
+    condition: { key: "additional_resources_needed", values: ["Yes"] },
   },
   {
-    key: "total_downtime",
-    part: "Part 1 — Think of one recent breakdown",
-    title: "Roughly how long was the machine out of service?",
-    options: ["Under 1 hour", "1–4 hours", "4–8 hours", "8–24 hours", "1–2 days", "3+ days", "Not sure"],
+    key: "resource_source",
+    part: "Question 8 — Resource source and arrangement",
+    title: "Where did that help or resource come from?",
+    options: ["Another depot / branch", "Manufacturer / OEM", "Existing supplier", "Independent engineer", "Another rental company", "Other"],
+    other: { option: "Other", key: "resource_source_other", label: "Please tell us more (optional)" },
+    condition: { key: "additional_resources_needed", values: ["Yes"] },
   },
   {
-    key: "biggest_time_loss",
-    part: "Part 1 — Think of one recent breakdown",
-    title: "Looking back, where was most time lost — if anywhere?",
-    options: ["Getting the right information", "Working out the fault", "Waiting for an engineer", "Finding the right part", "Waiting for the part", "Waiting for manufacturer/OEM support", "Finding another machine", "Transport", "Communication / approval", "Nowhere in particular — it went smoothly", "Other"],
-    other: { option: "Other", key: "biggest_time_loss_other", label: "Please tell us more (optional)" },
+    key: "resource_arrangement",
+    part: "Question 8 — Resource source and arrangement",
+    title: "How did you arrange it?",
+    options: ["Someone we already knew", "Phone", "WhatsApp / messaging", "Internal system", "Manufacturer / supplier portal", "Online search", "Other"],
+    other: { option: "Other", key: "resource_arrangement_other", label: "Please tell us more (optional)" },
+    condition: { key: "additional_resources_needed", values: ["Yes"] },
   },
   {
-    key: "breakdown_frequency",
-    part: "Part 2 — Your day-to-day experience",
-    title: "How often are you involved in MEWP breakdowns?",
-    options: ["Most days", "A few times a week", "About once a week", "A few times a month", "Less often"],
+    key: "time_to_resource",
+    part: "Question 9 — Time to resource",
+    title: "Once you knew what you needed, roughly how long did it take to get it in place?",
+    options: ["Under 30 minutes", "30–60 minutes", "1–2 hours", "2–4 hours", "More than 4 hours", "Next day or longer", "Can't remember"],
+    condition: { key: "additional_resources_needed", values: ["Yes"] },
   },
   {
-    key: "most_helpful_next_breakdown",
-    part: "Part 2 — Your day-to-day experience",
-    title: "When the next machine breaks down, which ONE thing would make your job easier?",
-    options: ["Better information from site", "Knowing the likely fault sooner", "Knowing the best next step", "Finding the right engineer", "Finding the right part", "Finding another machine quickly", "Seeing how similar breakdowns were fixed before", "Nothing in particular", "Other"],
-    other: { option: "Other", key: "most_helpful_next_breakdown_other", label: "Please tell us more (optional)" },
+    key: "current_recovery_method",
+    part: "Question 10 — Current recovery method",
+    title: "Generally, how well does your current way of finding and arranging recovery support work?",
+    options: ["Very well", "Fairly well", "It's mixed", "Not very well", "Poorly"],
   },
   {
-    key: "role",
-    part: "About you",
-    title: "What best describes your role?",
-    options: ["Service Manager / Controller", "Engineer", "Hire desk / Rental", "Fleet / Operations", "Other"],
-    other: { option: "Other", key: "role_other", label: "Please tell us more (optional)" },
+    key: "recovery_outcome",
+    part: "Question 11 — Recovery outcome",
+    title: "How did the customer eventually get working again?",
+    options: ["We fixed the original machine", "Remote fix / operator action", "Replacement from our own fleet", "Cross-hire / machine from another rental company", "They used another machine already on site", "They waited for the original machine to be repaired", "Other", "Don't know"],
+    other: { option: "Other", key: "recovery_outcome_other", label: "Please tell us more (optional)" },
   },
   {
-    key: "trial_interest",
-    part: "Future testing",
-    title: "Would you be open to trying a quicker way of handling a future breakdown?",
-    options: ["Yes — happy to try it", "Maybe — tell me more", "Not at the moment"],
+    key: "avoidable_time",
+    part: "Question 12 — Avoidable time",
+    title: "Looking back, was there any point where time could realistically have been saved?",
+    options: ["Yes", "Probably", "No", "Not sure"],
+  },
+  {
+    key: "biggest_difference",
+    part: "Question 12 — Avoidable time",
+    title: "What would have made the biggest difference?",
+    options: ["Better information from site", "Knowing the fault sooner", "Knowing who to contact", "Getting an engineer sooner", "Getting the right part sooner", "Faster manufacturer / OEM support", "Getting a replacement machine sooner", "Better communication / coordination", "Something else"],
+    other: { option: "Something else", key: "biggest_difference_other", label: "Please tell us more (optional)" },
+    condition: { key: "avoidable_time", values: ["Yes", "Probably"] },
+  },
+  {
+    key: "customer_working_time_lost",
+    part: "Question 13 — Customer working time lost",
+    title: "Roughly how much working time did the customer lose?",
+    options: ["Under 1 hour", "1–2 hours", "2–4 hours", "4–8 hours", "About a day", "More than a day", "They kept working with a replacement machine", "Don't know"],
+  },
+  {
+    key: "tomorrow_easier",
+    part: "Final question",
+    title: "If the same thing happened tomorrow, what would make it easier to get the job moving again?",
+    kind: "text",
+  },
+  {
+    key: "findings_preference",
+    part: "Optional follow-up",
+    title: "Would you like a copy of the UK Powered Access Recovery Study findings?",
+    options: ["Yes", "No"],
+  },
+  {
+    key: "follow_up_chat",
+    part: "Optional follow-up",
+    title: "Would you be happy to have a short follow-up chat about your breakdown experience?",
+    options: ["Yes", "Maybe", "No"],
   },
 ];
 
@@ -189,24 +239,37 @@ export default function KeepStudy() {
       // Restore only the server-confirmed receipt needed to finish the findings request after a refresh.
       // eslint-disable-next-line react-hooks/set-state-in-effect
       setFindingsReceipt(receipt as FindingsReceipt);
-      setAnswers({ trial_interest: receipt.trialInterest });
+      setAnswers({ follow_up_chat: receipt.trialInterest });
       setScreen("done");
     } catch {
       window.sessionStorage.removeItem(findingsReceiptKey);
     }
   }, []);
 
-  const question = questions[step];
+  const visibleQuestions = questions.filter((item) => {
+    if (!item.condition) return true;
+    const conditionAnswer = answers[item.condition.key];
+    return typeof conditionAnswer === "string" && item.condition.values.includes(conditionAnswer);
+  });
+  const question = visibleQuestions[Math.min(step, visibleQuestions.length - 1)];
   const answer = answers[question.key];
   const selected = Array.isArray(answer) ? answer : answer ? [answer] : [];
   const showOther = !!question.other && selected.includes(question.other.option);
-  const showContact = question.key === "trial_interest" && (selected[0] === "Yes — happy to try it" || selected[0] === "Maybe — tell me more");
-  const canContinue = selected.length > 0;
-  const progress = ((step + 1) / questions.length) * 100;
+  const showContact = question.key === "follow_up_chat";
+  const canContinue = question.kind === "text"
+    ? typeof answer === "string" && answer.trim().length > 0
+    : selected.length > 0;
+  const progress = ((step + 1) / visibleQuestions.length) * 100;
 
   function select(option: string) {
     if (question.multiple) {
-      const next = selected.includes(option) ? selected.filter((item) => item !== option) : [...selected, option];
+      let next: string[];
+      if (question.exclusiveOption && option === question.exclusiveOption) {
+        next = selected.includes(option) ? [] : [option];
+      } else {
+        const withoutExclusive = question.exclusiveOption ? selected.filter((item) => item !== question.exclusiveOption) : selected;
+        next = withoutExclusive.includes(option) ? withoutExclusive.filter((item) => item !== option) : [...withoutExclusive, option];
+      }
       setAnswers((current) => ({ ...current, [question.key]: next }));
       if (question.other && option === question.other.option && !next.includes(option)) {
         setOtherAnswers((current) => ({ ...current, [question.other!.key]: "" }));
@@ -218,10 +281,27 @@ export default function KeepStudy() {
     if (question.other && option !== question.other.option) {
       setOtherAnswers((current) => ({ ...current, [question.other!.key]: "" }));
     }
-    if (question.key === "trial_interest" && option === "Not at the moment") {
-      setContact({ contact_name: "", company: "", contact_details: "" });
+    if (question.key === "additional_resources_needed" && option !== "Yes") {
+      setAnswers((current) => ({
+        ...current,
+        additional_resources_needed: option,
+        additional_resources: undefined,
+        resource_source: undefined,
+        resource_arrangement: undefined,
+        time_to_resource: undefined,
+      }));
+      setOtherAnswers((current) => ({
+        ...current,
+        additional_resources_other: "",
+        resource_source_other: "",
+        resource_arrangement_other: "",
+      }));
     }
-    if (question.key === "trial_interest" && option !== "Not at the moment" && window.matchMedia("(max-width: 600px)").matches) {
+    if (question.key === "avoidable_time" && option !== "Yes" && option !== "Probably") {
+      setAnswers((current) => ({ ...current, avoidable_time: option, biggest_difference: undefined }));
+      setOtherAnswers((current) => ({ ...current, biggest_difference_other: "" }));
+    }
+    if (question.key === "follow_up_chat" && window.matchMedia("(max-width: 600px)").matches) {
       window.requestAnimationFrame(() => {
         window.requestAnimationFrame(() => trialContactRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }));
       });
@@ -229,7 +309,7 @@ export default function KeepStudy() {
   }
 
   function next() {
-    if (!canContinue || step === questions.length - 1) return;
+    if (!canContinue || step === visibleQuestions.length - 1) return;
     setStep((current) => current + 1);
     setSubmitError("");
     window.scrollTo({ top: 0, behavior: "smooth" });
@@ -252,7 +332,7 @@ export default function KeepStudy() {
       const response = await fetch("/api/recovery-cases", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ ...answers, ...otherAnswers, ...contact }),
+        body: JSON.stringify({ questionnaire_version: "uk_industrial_english_v1", ...answers, ...otherAnswers, ...contact }),
       });
       const result = await response.json() as {
         error?: string;
@@ -263,7 +343,7 @@ export default function KeepStudy() {
       if (typeof result.response?.id !== "string" || typeof result.findings_token !== "string") {
         throw new Error("Submission was not confirmed");
       }
-      const trialInterest = typeof answers.trial_interest === "string" ? answers.trial_interest : "";
+      const trialInterest = typeof answers.follow_up_chat === "string" ? answers.follow_up_chat : "";
       const receipt: FindingsReceipt = {
         responseId: result.response.id,
         token: result.findings_token,
@@ -327,7 +407,7 @@ export default function KeepStudy() {
   }
 
   if (screen === "done") {
-    const followUp = answers.trial_interest === "Yes — happy to try it" || answers.trial_interest === "Maybe — tell me more";
+    const followUp = answers.follow_up_chat === "Yes" || answers.follow_up_chat === "Maybe" || answers.follow_up_chat === "Yes — happy to try it" || answers.follow_up_chat === "Maybe — tell me more";
     return (
       <main className="keep-study keep-done">
         <header className="keep-header"><KeepBrand /><span>RESPONSE RECORDED</span></header>
@@ -370,17 +450,16 @@ export default function KeepStudy() {
   if (screen === "landing") {
     return (
       <main className="keep-study keep-intro keep-survey-intro">
-        <header className="keep-header"><KeepBrand /><span>MEWP BREAKDOWN &amp; RECOVERY SURVEY</span></header>
+        <header className="keep-header"><KeepBrand /><span>UK POWERED ACCESS RECOVERY STUDY 2026</span></header>
         <section className="keep-survey-welcome">
-          <h1>KEEP THE UK WORKING.</h1>
+          <h1>UK Powered Access Recovery Study 2026</h1>
           <div className="keep-survey-intro-copy">
-            <p><strong>When a MEWP breaks down, every minute matters.</strong></p>
-            <p>Share one recent breakdown and help us understand where time is lost and what gets machines back to work faster.</p>
+            <p><strong>When a machine goes down, what actually slows getting the job moving again?</strong></p>
+            <p>We&apos;re looking at what happens in real breakdowns across the powered access industry — where time gets lost, what gets things moving again, and what could work better.</p>
           </div>
           <div className="keep-survey-cta">
             <button type="button" className="keep-primary" onClick={() => setScreen("questions")}>Share a breakdown <b>↗</b></button>
-            <p className="keep-cta-note">2–3 minutes <i>·</i> No company-sensitive information needed</p>
-            <p className="keep-contributor-note">Contributors will receive the findings.</p>
+            <p className="keep-cta-note">Based on real experience. Around 3 minutes.</p>
           </div>
         </section>
       </main>
@@ -390,12 +469,17 @@ export default function KeepStudy() {
   return (
     <main className="keep-study keep-question-page">
       <header className="keep-header keep-header-light"><KeepBrand /><button type="button" onClick={() => setScreen("landing")}>Exit survey</button></header>
-      <div className="keep-progress" aria-live="polite"><div><span>SURVEY PROGRESS</span><b>Question {step + 1} of {questions.length}</b></div><i><em style={{ width: `${progress}%` }} /></i></div>
+      <div className="keep-progress" aria-live="polite"><div><span>SURVEY PROGRESS</span><b>Question {step + 1} of {visibleQuestions.length}</b></div><i><em style={{ width: `${progress}%` }} /></i></div>
       <section className="keep-question-shell" key={question.key}>
-        <div className="keep-question-meta"><p className="keep-kicker">{question.part}</p><strong><i>●</i> {question.multiple ? "Select all that apply" : "Select one"}</strong></div>
+        <div className="keep-question-meta"><p className="keep-kicker">{question.part}</p><strong><i>●</i> {question.helper || (question.kind === "text" ? "Free-text response" : question.multiple ? "Select all that apply" : "Select one")}</strong></div>
         <h1>{question.title}</h1>
-        <div className={`keep-options${question.multiple ? " keep-options-multiple" : ""}`}>
-          {question.options.map((option, index) => {
+        {question.kind === "text" ? (
+          <label className="keep-other keep-textarea">
+            <textarea value={typeof answer === "string" ? answer : ""} maxLength={1000} onChange={(event) => setAnswers((current) => ({ ...current, [question.key]: event.target.value }))} placeholder="Type your answer…" />
+            <span>{(typeof answer === "string" ? answer : "").trim().length}/1000</span>
+          </label>
+        ) : <div className={`keep-options${question.multiple ? " keep-options-multiple" : ""}`}>
+          {(question.options || []).map((option, index) => {
             const isSelected = selected.includes(option);
             return (
               <button key={option} type="button" className={isSelected ? "selected" : ""} onClick={() => select(option)} aria-pressed={isSelected}>
@@ -403,7 +487,7 @@ export default function KeepStudy() {
               </button>
             );
           })}
-        </div>
+        </div>}
 
         {showOther && question.other && (
           <label className="keep-other">{question.other.label}
@@ -414,17 +498,15 @@ export default function KeepStudy() {
 
         {showContact && (
           <div ref={trialContactRef} className="keep-trial-contact" aria-live="polite">
-            <div><strong>If you&apos;d like us to follow up</strong><span>All fields are optional.</span></div>
-            <label>Name <small>Optional</small><input value={contact.contact_name} maxLength={160} autoComplete="name" onChange={(event) => setContact((current) => ({ ...current, contact_name: event.target.value }))} /></label>
-            <label>Company <small>Optional</small><input value={contact.company} maxLength={160} autoComplete="organization" onChange={(event) => setContact((current) => ({ ...current, company: event.target.value }))} /></label>
-            <label>Email or mobile <small>Optional</small><input value={contact.contact_details} maxLength={254} autoComplete="email" onChange={(event) => setContact((current) => ({ ...current, contact_details: event.target.value }))} /></label>
+            <div><strong>Email / contact details</strong><span>Optional.</span></div>
+            <label>Email / contact details <small>Optional</small><input value={contact.contact_details} maxLength={254} autoComplete="email" onChange={(event) => setContact((current) => ({ ...current, contact_details: event.target.value }))} /></label>
           </div>
         )}
 
         {submitError && <p className="keep-submit-error" role="alert">{submitError}</p>}
         <div className="keep-actions">
           <div><button type="button" className="keep-back" disabled={submitting} onClick={back}>← Back</button><span>One recent breakdown<small>Choose the closest answer</small></span></div>
-          <div><span>{question.multiple ? "Select everything that applied" : "Choose the closest answer"}</span>{step === questions.length - 1 ? <button type="button" className="keep-primary" disabled={!canContinue || submitting} onClick={submit}>{submitting ? "Saving…" : "Submit response"}<b>↗</b></button> : <button type="button" className="keep-primary" disabled={!canContinue} onClick={next}>Next question<b>↗</b></button>}</div>
+          <div><span>{question.helper || (question.kind === "text" ? "Write a short practical answer" : question.multiple ? "Select everything that applied" : "Choose the closest answer")}</span>{step === visibleQuestions.length - 1 ? <button type="button" className="keep-primary" disabled={!canContinue || submitting} onClick={submit}>{submitting ? "Saving…" : "Submit response"}<b>↗</b></button> : <button type="button" className="keep-primary" disabled={!canContinue} onClick={next}>Next question<b>↗</b></button>}</div>
         </div>
       </section>
     </main>
