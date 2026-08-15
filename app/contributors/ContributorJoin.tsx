@@ -1,6 +1,7 @@
 "use client";
 
 import { FormEvent, useState } from "react";
+import Link from "next/link";
 
 const interests = [
   "Share real experiences",
@@ -66,7 +67,7 @@ export default function ContributorJoin() {
           <p>BECOME A CONTRIBUTOR</p>
           <h2 id="cp-join-success-title">Thank you for joining RecoveryFlow.</h2>
           <p>We&apos;ll keep you informed about relevant opportunities to contribute, learn and connect.</p>
-          <a href="/">Return to RecoveryFlow <b>→</b></a>
+          <Link href="/">Return to RecoveryFlow <b>→</b></Link>
         </div>
       </section>
     );
