@@ -153,6 +153,7 @@ export default function KeepStudy() {
   const [submitting, setSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState("");
   const submissionLocked = useRef(false);
+  const trialContactRef = useRef<HTMLDivElement>(null);
 
   const question = questions[step];
   const answer = answers[question.key];
@@ -178,6 +179,11 @@ export default function KeepStudy() {
     }
     if (question.key === "trial_interest" && option === "Not at the moment") {
       setContact({ contact_name: "", company: "", contact_details: "" });
+    }
+    if (question.key === "trial_interest" && option !== "Not at the moment" && window.matchMedia("(max-width: 600px)").matches) {
+      window.requestAnimationFrame(() => {
+        window.requestAnimationFrame(() => trialContactRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }));
+      });
     }
   }
 
@@ -230,7 +236,10 @@ export default function KeepStudy() {
           <h1>Thanks for sharing your experience.</h1>
           <p>It helps us understand where time is being lost during breakdowns — and what could get machines back to work quicker.<br /><br />We’ll share what we learn with contributors.{followUp && <><br /><br />We’ll be in touch about trying this on a future breakdown.</>}</p>
           <strong className="keep-done-flag">KEEP THE UK WORKING.</strong>
-          <div className="keep-done-actions"><Link href="/">About RecoveryFlow <b>↗</b></Link></div>
+          <div className="keep-done-actions">
+            <Link href="/contributors#join">Receive the Recovery Study findings <b>↗</b></Link>
+            <Link href="/">About RecoveryFlow <b>↗</b></Link>
+          </div>
         </section>
       </main>
     );
@@ -282,7 +291,7 @@ export default function KeepStudy() {
         )}
 
         {showContact && (
-          <div className="keep-trial-contact" aria-live="polite">
+          <div ref={trialContactRef} className="keep-trial-contact" aria-live="polite">
             <div><strong>If you&apos;d like us to follow up</strong><span>All fields are optional.</span></div>
             <label>Name <small>Optional</small><input value={contact.contact_name} maxLength={160} autoComplete="name" onChange={(event) => setContact((current) => ({ ...current, contact_name: event.target.value }))} /></label>
             <label>Company <small>Optional</small><input value={contact.company} maxLength={160} autoComplete="organization" onChange={(event) => setContact((current) => ({ ...current, company: event.target.value }))} /></label>
