@@ -1,3 +1,11 @@
+do $$
+begin
+  if (select count(*) from public.recovery_cases) <> 0 then
+    raise exception 'Production recovery_cases is no longer empty; aborting V2 replacement';
+  end if;
+end;
+$$;
+
 drop table public.recovery_cases;
 
 create table public.recovery_cases (
@@ -52,3 +60,4 @@ grant select, insert, delete on table public.recovery_cases to service_role;
 
 comment on table public.recovery_cases is
   'One structured response to the MEWP Breakdown & Recovery Survey V1.0.';
+;

@@ -27,13 +27,7 @@ create table public.recovery_cases (
     and (improvement <> 'Other' or nullif(btrim(improvement_other), '') is not null)
   )
 );
-
-create index recovery_cases_created_at_idx
-  on public.recovery_cases (created_at desc);
-
+create index recovery_cases_created_at_idx on public.recovery_cases (created_at desc);
 alter table public.recovery_cases enable row level security;
-
 revoke all on table public.recovery_cases from anon, authenticated;
-
-comment on table public.recovery_cases is
-  'One structured record for each completed UK Powered Access Recovery Study 2026 submission.';
+comment on table public.recovery_cases is 'One structured record for each completed UK Powered Access Recovery Study 2026 submission.';;

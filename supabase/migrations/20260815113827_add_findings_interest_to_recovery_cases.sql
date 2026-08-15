@@ -37,4 +37,4 @@ comment on column public.recovery_cases.findings_email is
 comment on column public.recovery_cases.findings_requested_at is
   'Server-generated time when findings interest was first registered.';
 comment on column public.recovery_cases.findings_token_hash is
-  'SHA-256 hash of the capability token returned only for the newly created response.';
+  'SHA-256 hash of the capability token returned only for the newly created response.';;
